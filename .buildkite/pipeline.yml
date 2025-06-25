@@ -7,12 +7,12 @@ steps:
       echo "==== STEP 1: Loading Kubeconfig Secret ===="
       KUBECONFIG_SECRET=$(buildkite-agent secret get k8s_admin_kubeconfig)
       export KUBECONFIG_SECRET
-      if [ -z "$KUBECONFIG_SECRET" ]; then
+      if [ -z "$$KUBECONFIG_SECRET" ]; then
         echo "❌ ERROR: Secret k8s_admin_kubeconfig not found in Buildkite Secrets!"
         echo "Please create this secret in your Buildkite Organization Settings → Secrets"
         exit 1
       fi
-      echo "Secret loaded successfully (length: $(echo "$KUBECONFIG_SECRET" | wc -c) chars)"
+      echo "Secret loaded successfully (length: $$(echo \"$$KUBECONFIG_SECRET\" | wc -c) chars)"
       echo "🔐 Secret ready for k8s-bootstrap plugin!"
       echo "==== STEP 2: Creating Service Account ===="
     plugins:
