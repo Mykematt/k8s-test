@@ -3,7 +3,7 @@ steps:
   - label: "🛠️ Bootstrap service account with flexible secret loading" 
     key: "bootstrap-sa"
     agents:
-      queue: default
+      queue: kubernetes
     plugins:
       - Mykematt/k8s-bootstrap#feature/pipeline-fixes:
           namespace: "default"
