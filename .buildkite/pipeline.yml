@@ -16,7 +16,7 @@ steps:
       queue: kubernetes
     plugins:
       - docker#v3.9.0:
-          image: bitnami/kubectl:latest
+          image: alpine/k8s:1.29.1
           volumes:
             - ".:/workspace"
           workdir: /workspace
@@ -45,7 +45,7 @@ steps:
       queue: "kubernetes"
     plugins:
       - docker#v3.9.0:
-          image: bitnami/kubectl:latest
+          image: alpine/k8s:1.29.1
           volumes:
             - ".:/workspace"
           workdir: /workspace
@@ -54,10 +54,7 @@ steps:
       echo "Downloading scoped kubeconfig artifact from Step 2..."
       buildkite-agent artifact download "kubeconfig-deployer-service-account.yaml" .
       
-      # Set up kubeconfig
-      mkdir -p ~/.kube
-      cp kubeconfig-deployer-service-account.yaml ~/.kube/config
-      
+      export KUBECONFIG="kubeconfig-deployer-service-account.yaml"
       echo "Using scoped kubeconfig for deployment..."
       echo "Applying Kubernetes manifests with limited permissions..."
       kubectl apply -f k8s/configmap.yaml
