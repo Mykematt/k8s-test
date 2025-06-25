@@ -6,6 +6,7 @@ steps:
     command: |
       echo "==== STEP 1: Loading Kubeconfig Secret ===="
       KUBECONFIG_SECRET=$(buildkite-agent secret get k8s_admin_kubeconfig)
+      export KUBECONFIG_SECRET
       if [ -z "$KUBECONFIG_SECRET" ]; then
         echo "❌ ERROR: Secret k8s_admin_kubeconfig not found in Buildkite Secrets!"
         echo "Please create this secret in your Buildkite Organization Settings → Secrets"
