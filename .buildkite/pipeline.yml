@@ -1,23 +1,13 @@
 steps:
-  - label: "🔐 Load kubeconfig secret"
-    key: "load-secret"
-    agents:
-      queue: default
-    command: |
-      echo "Loading kubeconfig secret from Buildkite Secrets..."
-      buildkite-agent secret get k8s_admin_kubeconfig > admin-kubeconfig.yaml
-      echo "Secret loaded, file size: $(wc -c < admin-kubeconfig.yaml) bytes"
-      buildkite-agent artifact upload admin-kubeconfig.yaml
-
-  - label: "🛠️ Bootstrap service account" 
+  - label: "🛠️ Bootstrap service account with flexible secret loading" 
     key: "bootstrap-sa"
-    depends_on: "load-secret"
     agents:
       queue: default
     plugins:
       - Mykematt/k8s-bootstrap#v1.0.0:
           namespace: "default"
           service-account-name: "deployer-service-account"
+          secret-name: "k8s_admin_kubeconfig"
           permissions:
             - deployments
             - pods
@@ -25,13 +15,8 @@ steps:
             - configmaps
             - services
     command: |
-      echo "Downloading admin kubeconfig..."
-      buildkite-agent artifact download admin-kubeconfig.yaml .
-      echo "Setting up environment for k8s-bootstrap plugin..."
-      export BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG="$(cat admin-kubeconfig.yaml)"
-      echo "Environment variable length: $(echo "$BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG" | wc -c) chars"
-      echo "First 200 chars of kubeconfig:"
-      echo "$BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG" | head -c 200
+      echo "🎯 FLEXIBLE PLUGIN TEST: Using secret-name parameter!"
+      echo "Plugin will load kubeconfig from Buildkite secret: k8s_admin_kubeconfig"
 
   - label: "🚀 Deploy nginx application"
     key: "deploy-nginx"
