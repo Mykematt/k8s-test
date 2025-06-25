@@ -1,43 +1,38 @@
 steps:
-  - label: "🔐 Load kubeconfig secret"
-    key: "load-secrets"
+  - label: "🔐 Load secret & Bootstrap service account"
+    key: "load-and-bootstrap"
     agents:
-      queue: "default"  # Regular agents with internet access
+      queue: "kubernetes"  # K8s agents with cluster access
     command: |
       echo "==== STEP 1: Loading Kubeconfig Secret ===="
       export KUBECONFIG_SECRET="$(buildkite-agent secret get k8s_admin_kubeconfig)"
-      echo "Secret loaded successfully (first 50 chars): ${KUBECONFIG_SECRET:0:50}..."
-      echo "Secret will be available to downstream steps"
-
-  - label: "🛠️ Bootstrap service account"
-    key: "bootstrap-sa"
-    depends_on: "load-secrets"
-    agents:
-      queue: "kubernetes"  # K8s agents with direct cluster access
-    command: |
+      if [ -z "$KUBECONFIG_SECRET" ]; then
+        echo "❌ ERROR: Secret k8s_admin_kubeconfig not found in Buildkite Secrets!"
+        echo "Please create this secret in your Buildkite Organization Settings → Secrets"
+        exit 1
+      fi
+      echo "Secret loaded successfully (length: ${#KUBECONFIG_SECRET} chars)"
       echo "==== STEP 2: Creating Service Account ===="
-      echo "Using loaded kubeconfig to create scoped service account"
-      echo "Generated kubeconfig will be uploaded as artifact"
     plugins:
       - Mykematt/k8s-bootstrap#v1.0.0:
+          cluster-admin-kubeconfig: "${KUBECONFIG_SECRET}"
           namespace: "default"
           service-account-name: "deployer-service-account"
-          cluster-admin-kubeconfig: "${KUBECONFIG_SECRET}"  # Secret from Step 1
           permissions:
             - "deployments"
-            - "pods"
+            - "pods" 
             - "secrets"
             - "configmaps"
             - "services"
 
   - label: "🚀 Deploy nginx application"
     key: "deploy-nginx"
-    depends_on: "bootstrap-sa"
+    depends_on: "load-and-bootstrap"
     agents:
-      queue: "kubernetes"  # K8s agents for deployment
+      queue: "kubernetes"  # K8s agents with cluster access
     command: |
       echo "==== STEP 3: Deploying Application ===="
-      echo "Downloading scoped kubeconfig artifact from Step 2..."
+      echo "Downloading scoped kubeconfig artifact from Step 1..."
       buildkite-agent artifact download "kubeconfig-*" .
       export KUBECONFIG="$(find . -name 'kubeconfig-*')"
       echo "Using scoped kubeconfig: $KUBECONFIG"
