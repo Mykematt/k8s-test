@@ -13,6 +13,7 @@ steps:
         exit 1
       fi
       echo "Secret loaded successfully (length: $(echo "$KUBECONFIG_SECRET" | wc -c) chars)"
+      echo "🔐 Secret ready for k8s-bootstrap plugin!"
       echo "==== STEP 2: Creating Service Account ===="
     plugins:
       - Mykematt/k8s-bootstrap#v1.0.0:
