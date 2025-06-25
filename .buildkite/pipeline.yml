@@ -1,0 +1,37 @@
+steps:
+  - label: "🔐 Create deployment service account"
+    key: "create-sa"
+    command: |
+      echo "==== STEP 1: Creating Service Account ===="
+      echo "Kubeconfig secret loaded and service account will be created"
+    plugins:
+      # First: Load secrets from Buildkite Secrets
+      - cluster-secrets#v1.0.0:
+          variables:
+            KUBECONFIG_SECRET: "k8s-admin-kubeconfig"  # This is the secret key in Buildkite Secrets
+      # Second: Use the k8s-bootstrap plugin with the loaded secret
+      - Mykematt/k8s-bootstrap#v1.0.0:
+          namespace: "default"
+          service-account-name: "deployer-service-account"
+          cluster-admin-kubeconfig: "${KUBECONFIG_SECRET}"  # Now this env var is available
+          permissions:
+            - "deployments"
+            - "pods"
+            - "secrets"
+            - "configmaps"
+            - "services"
+
+  - label: "🚀 Deploy nginx application"
+    depends_on: "create-sa"
+    key: "deploy-nginx"
+    command: |
+      echo "==== STEP 2: Deploying Application ===="
+      echo "Downloading kubeconfig artifact from previous step..."
+      buildkite-agent artifact download "kubeconfig-*" .
+      export KUBECONFIG="$(find . -name 'kubeconfig-*')"
+      echo "Using kubeconfig: $KUBECONFIG"
+      echo "Applying Kubernetes manifests..."
+      kubectl apply -f k8s/configmap.yaml
+      kubectl apply -f k8s/deployment.yaml
+      kubectl apply -f k8s/service.yaml
+      echo "✅ Deployment completed successfully!"
