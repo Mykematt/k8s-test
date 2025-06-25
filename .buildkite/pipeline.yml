@@ -1,4 +1,5 @@
 steps:
+  # 🎯 TESTING: Plugin integration with secret-name parameter
   - label: "🛠️ Bootstrap service account with flexible secret loading" 
     key: "bootstrap-sa"
     agents:
