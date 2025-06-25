@@ -1,33 +1,87 @@
 steps:
-  - label: "🔐 Load secret & Bootstrap service account"
-    key: "load-and-bootstrap"
+  - label: "🔐 Load kubeconfig secret"
+    key: "load-secret"
     agents:
-      queue: "kubernetes"
+      queue: kubernetes
     command: |
-      echo "Loading kubeconfig secret..."
-      export BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG="$(buildkite-agent secret get k8s_admin_kubeconfig)"
-      echo "Secret loaded, length: $(echo "$BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG" | wc -c) chars"
-    plugins:
-      - Mykematt/k8s-bootstrap#v1.0.0:
-          namespace: "default"
-          service-account-name: "deployer-service-account"
-          permissions:
-            - deployments
-            - pods
-            - secrets
-            - configmaps
-            - services
+      echo "Loading kubeconfig secret from Buildkite Secrets..."
+      buildkite-agent secret get k8s_admin_kubeconfig > admin-kubeconfig.yaml
+      echo "Secret loaded, file size: $(wc -c < admin-kubeconfig.yaml) bytes"
+      buildkite-agent artifact upload admin-kubeconfig.yaml
+
+  - label: "🛠️ Bootstrap service account" 
+    key: "bootstrap-sa"
+    depends_on: "load-secret"
+    agents:
+      queue: kubernetes
+    command: |
+      echo "Downloading admin kubeconfig..."
+      buildkite-agent artifact download admin-kubeconfig.yaml .
+      echo "Creating service account with limited permissions..."
+      
+      export KUBECONFIG="./admin-kubeconfig.yaml"
+      
+      # Create service account
+      kubectl create serviceaccount deployer-service-account -n default --dry-run=client -o yaml | kubectl apply -f -
+      
+      # Create role with limited permissions
+      cat <<EOF | kubectl apply -f -
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        namespace: default
+        name: deployer-role
+      rules:
+      - apiGroups: [""]
+        resources: ["pods", "secrets", "configmaps", "services"]
+        verbs: ["get", "list", "create", "update", "patch", "delete"]
+      - apiGroups: ["apps"]
+        resources: ["deployments"]
+        verbs: ["get", "list", "create", "update", "patch", "delete"]
+      EOF
+      
+      # Create role binding
+      kubectl create rolebinding deployer-binding --role=deployer-role --serviceaccount=default:deployer-service-account -n default --dry-run=client -o yaml | kubectl apply -f -
+      
+      # Create token and kubeconfig
+      TOKEN=$(kubectl create token deployer-service-account -n default)
+      SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+      CA_DATA=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+      
+      # Create scoped kubeconfig
+      cat <<EOF > kubeconfig-deployer-service-account.yaml
+      apiVersion: v1
+      kind: Config
+      clusters:
+      - cluster:
+          certificate-authority-data: $CA_DATA
+          server: $SERVER
+        name: kubernetes
+      contexts:
+      - context:
+          cluster: kubernetes
+          user: deployer-service-account
+        name: deployer-service-account@kubernetes
+      current-context: deployer-service-account@kubernetes
+      users:
+      - name: deployer-service-account
+        user:
+          token: $TOKEN
+      EOF
+      
+      echo "Scoped kubeconfig created successfully"
+      buildkite-agent artifact upload kubeconfig-deployer-service-account.yaml
 
   - label: "🚀 Deploy nginx application"
     key: "deploy-nginx"
-    depends_on: "load-and-bootstrap"
+    depends_on: "bootstrap-sa"
     agents:
       queue: "kubernetes"
     command: |
       echo "==== STEP 3: Deploying Application ===="
-      echo "Downloading scoped kubeconfig artifact from Step 1..."
-      buildkite-agent artifact download "kubeconfig-*" .
-      export KUBECONFIG="$(find . -name 'kubeconfig-*')"
+      echo "Downloading scoped kubeconfig artifact from Step 2..."
+      buildkite-agent artifact download "kubeconfig-deployer-service-account.yaml" .
+      export KUBECONFIG="$(find . -name 'kubeconfig-deployer-service-account.yaml')"
       echo "Using scoped kubeconfig: $KUBECONFIG"
       echo "Applying Kubernetes manifests with limited permissions..."
       kubectl apply -f k8s/configmap.yaml
