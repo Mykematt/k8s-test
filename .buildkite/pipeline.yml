@@ -3,8 +3,10 @@ steps:
     key: "load-and-bootstrap"
     agents:
       queue: "kubernetes"
-    env:
-      BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG: $(buildkite-agent secret get k8s_admin_kubeconfig)
+    command: |
+      echo "Loading kubeconfig secret..."
+      export BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG="$(buildkite-agent secret get k8s_admin_kubeconfig)"
+      echo "Secret loaded, length: $(echo "$BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG" | wc -c) chars"
     plugins:
       - Mykematt/k8s-bootstrap#v1.0.0:
           namespace: "default"
