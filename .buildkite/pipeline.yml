@@ -1,11 +1,11 @@
 steps:
-  # 🎯 TESTING: Plugin integration with secret-name parameter
+  # 🎯 TESTING: Plugin integration with secret-name parameter (FIXED plugin.yml!)
   - label: "🛠️ Bootstrap service account with flexible secret loading" 
     key: "bootstrap-sa"
     agents:
       queue: default
     plugins:
-      - Mykematt/k8s-bootstrap#v1.0.0:
+      - Mykematt/k8s-bootstrap#feature/pipeline-fixes:
           namespace: "default"
           service-account-name: "deployer-service-account"
           secret-name: "k8s_admin_kubeconfig"
