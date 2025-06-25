@@ -18,6 +18,12 @@ steps:
     command: |
       echo "🎯 FLEXIBLE PLUGIN TEST: Using secret-name parameter!"
       echo "Plugin will load kubeconfig from Buildkite secret: k8s_admin_kubeconfig"
+      
+      echo "📦 Installing kubectl..."
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      chmod +x kubectl
+      export PATH="$PWD:$PATH"
+      echo "✅ kubectl installed successfully"
 
   - label: "🚀 Deploy nginx application"
     key: "deploy-nginx"
