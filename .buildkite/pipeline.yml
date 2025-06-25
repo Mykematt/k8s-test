@@ -1,5 +1,5 @@
 steps:
-  - label: "Load secret & Bootstrap service account"
+  - label: "🔐 Load secret & Bootstrap service account"
     key: "load-and-bootstrap"
     agents:
       queue: "kubernetes"
@@ -7,11 +7,11 @@ steps:
       echo "==== STEP 1: Loading Kubeconfig Secret ===="
       export KUBECONFIG_SECRET="$(buildkite-agent secret get k8s_admin_kubeconfig)"
       if [ -z "$KUBECONFIG_SECRET" ]; then
-        echo "ERROR: Secret k8s_admin_kubeconfig not found in Buildkite Secrets!"
+        echo "❌ ERROR: Secret k8s_admin_kubeconfig not found in Buildkite Secrets!"
         echo "Please create this secret in your Buildkite Organization Settings → Secrets"
         exit 1
       fi
-      echo "Secret loaded successfully (length: ${#KUBECONFIG_SECRET} chars)"
+      echo "Secret loaded successfully (length: $(echo "$KUBECONFIG_SECRET" | wc -c) chars)"
       echo "==== STEP 2: Creating Service Account ===="
     plugins:
       - Mykematt/k8s-bootstrap#v1.0.0:
@@ -25,7 +25,7 @@ steps:
             - "configmaps"
             - "services"
 
-  - label: "Deploy nginx application"
+  - label: "🚀 Deploy nginx application"
     key: "deploy-nginx"
     depends_on: "load-and-bootstrap"
     agents:
@@ -40,4 +40,4 @@ steps:
       kubectl apply -f k8s/configmap.yaml
       kubectl apply -f k8s/deployment.yaml
       kubectl apply -f k8s/service.yaml
-      echo "Deployment completed successfully!"
+      echo "✅ Deployment completed successfully!"
