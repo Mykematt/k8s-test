@@ -5,7 +5,7 @@ steps:
       queue: "kubernetes"
     command: |
       echo "==== STEP 1: Loading Kubeconfig Secret ===="
-      export KUBECONFIG_SECRET="$(buildkite-agent secret get k8s_admin_kubeconfig)"
+      KUBECONFIG_SECRET=$(buildkite-agent secret get k8s_admin_kubeconfig)
       if [ -z "$KUBECONFIG_SECRET" ]; then
         echo "❌ ERROR: Secret k8s_admin_kubeconfig not found in Buildkite Secrets!"
         echo "Please create this secret in your Buildkite Organization Settings → Secrets"
