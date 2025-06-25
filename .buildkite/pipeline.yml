@@ -14,94 +14,53 @@ steps:
     depends_on: "load-secret"
     agents:
       queue: kubernetes
+    plugins:
+      - docker#v3.9.0:
+          image: bitnami/kubectl:latest
+          volumes:
+            - ".:/workspace"
+          workdir: /workspace
+          environment:
+            - BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG
+      - Mykematt/k8s-bootstrap#v1.0.0:
+          namespace: "default"
+          service-account-name: "deployer-service-account"
+          permissions:
+            - deployments
+            - pods
+            - secrets
+            - configmaps
+            - services
     command: |
-      echo "Installing kubectl..."
-      ARCH=$(uname -m)
-      if [[ "$ARCH" == "x86_64" ]]; then ARCH="amd64"; fi
-      if [[ "$ARCH" == "aarch64" ]]; then ARCH="arm64"; fi
-      OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/${OS}/${ARCH}/kubectl"
-      chmod +x kubectl
-      sudo mv kubectl /usr/local/bin/ || mv kubectl ./kubectl
-      
       echo "Downloading admin kubeconfig..."
       buildkite-agent artifact download admin-kubeconfig.yaml .
-      echo "Creating service account with limited permissions..."
-      
-      export KUBECONFIG="./admin-kubeconfig.yaml"
-      
-      # Create service account
-      ./kubectl create serviceaccount deployer-service-account -n default --dry-run=client -o yaml | ./kubectl apply -f -
-      
-      # Create role with limited permissions
-      cat <<EOF | ./kubectl apply -f -
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: Role
-      metadata:
-        namespace: default
-        name: deployer-role
-      rules:
-      - apiGroups: [""]
-        resources: ["pods", "secrets", "configmaps", "services"]
-        verbs: ["get", "list", "create", "update", "patch", "delete"]
-      - apiGroups: ["apps"]
-        resources: ["deployments"]
-        verbs: ["get", "list", "create", "update", "patch", "delete"]
-      EOF
-      
-      # Create role binding
-      ./kubectl create rolebinding deployer-binding --role=deployer-role --serviceaccount=default:deployer-service-account -n default --dry-run=client -o yaml | ./kubectl apply -f -
-      
-      # Create token and kubeconfig
-      TOKEN=$(./kubectl create token deployer-service-account -n default)
-      SERVER=$(./kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
-      CA_DATA=$(./kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-      
-      # Create scoped kubeconfig
-      cat <<EOF > kubeconfig-deployer-service-account.yaml
-      apiVersion: v1
-      kind: Config
-      clusters:
-      - cluster:
-          certificate-authority-data: $CA_DATA
-          server: $SERVER
-        name: kubernetes
-      contexts:
-      - context:
-          cluster: kubernetes
-          user: deployer-service-account
-        name: deployer-service-account@kubernetes
-      current-context: deployer-service-account@kubernetes
-      users:
-      - name: deployer-service-account
-        user:
-          token: $TOKEN
-      EOF
-      
-      echo "Scoped kubeconfig created successfully"
-      buildkite-agent artifact upload kubeconfig-deployer-service-account.yaml
+      echo "Setting up environment for k8s-bootstrap plugin..."
+      export BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG="$(cat admin-kubeconfig.yaml)"
+      echo "Environment variable length: $(echo "$BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG" | wc -c) chars"
 
   - label: "🚀 Deploy nginx application"
     key: "deploy-nginx"
     depends_on: "bootstrap-sa"
     agents:
       queue: "kubernetes"
+    plugins:
+      - docker#v3.9.0:
+          image: bitnami/kubectl:latest
+          volumes:
+            - ".:/workspace"
+          workdir: /workspace
     command: |
       echo "==== STEP 3: Deploying Application ===="
       echo "Downloading scoped kubeconfig artifact from Step 2..."
       buildkite-agent artifact download "kubeconfig-deployer-service-account.yaml" .
-      export KUBECONFIG="$(find . -name 'kubeconfig-deployer-service-account.yaml')"
-      echo "Using scoped kubeconfig: $KUBECONFIG"
-      echo "Installing kubectl..."
-      ARCH=$(uname -m)
-      if [[ "$ARCH" == "x86_64" ]]; then ARCH="amd64"; fi
-      if [[ "$ARCH" == "aarch64" ]]; then ARCH="arm64"; fi
-      OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/${OS}/${ARCH}/kubectl"
-      chmod +x kubectl
-      sudo mv kubectl /usr/local/bin/ || mv kubectl ./kubectl
+      
+      # Set up kubeconfig
+      mkdir -p ~/.kube
+      cp kubeconfig-deployer-service-account.yaml ~/.kube/config
+      
+      echo "Using scoped kubeconfig for deployment..."
       echo "Applying Kubernetes manifests with limited permissions..."
-      ./kubectl apply -f k8s/configmap.yaml
-      ./kubectl apply -f k8s/deployment.yaml
-      ./kubectl apply -f k8s/service.yaml
+      kubectl apply -f k8s/configmap.yaml
+      kubectl apply -f k8s/deployment.yaml
+      kubectl apply -f k8s/service.yaml
       echo "✅ Deployment completed successfully!"
