@@ -2,15 +2,12 @@ steps:
   - label: "🔐 Load kubeconfig secret"
     key: "load-secrets"
     agents:
-      queue: "default"  # Regular agents with internet access to Buildkite Secrets
+      queue: "default"  # Regular agents with internet access
     command: |
       echo "==== STEP 1: Loading Kubeconfig Secret ===="
+      export KUBECONFIG_SECRET="$(buildkite-agent secret get k8s_admin_kubeconfig)"
       echo "Secret loaded successfully (first 50 chars): ${KUBECONFIG_SECRET:0:50}..."
       echo "Secret will be available to downstream steps"
-    plugins:
-      - cluster-secrets#v1.0.0:
-          variables:
-            KUBECONFIG_SECRET: "k8s_admin_kubeconfig"  # Secret key in Buildkite UI
 
   - label: "🛠️ Bootstrap service account"
     key: "bootstrap-sa"

@@ -1,36 +1,59 @@
 # k8s-test
 
-Example repository demonstrating the integration of [k8s-bootstrap-buildkite-plugin](https://github.com/Mykematt/k8s-bootstrap-buildkite-plugin) with [cluster-secrets-buildkite-plugin](https://github.com/buildkite-plugins/cluster-secrets-buildkite-plugin).
+Example repository demonstrating the integration of [k8s-bootstrap-buildkite-plugin](https://github.com/Mykematt/k8s-bootstrap-buildkite-plugin) with Buildkite Secrets.
 
 ## Overview
 
-This project shows how to:
-1. **Securely load kubeconfig** using cluster-secrets plugin
+This pipeline demonstrates:
+
+1. **Securely load kubeconfig** using native Buildkite Secrets
 2. **Create scoped service accounts** using k8s-bootstrap plugin  
 3. **Deploy applications** using the generated scoped kubeconfig
 
-## Pipeline Flow
+## Integration Overview
 
-### Step 1: Create Service Account
-- Uses `cluster-secrets#v1.0.0` to load admin kubeconfig from Buildkite Secrets
-- Uses `k8s-bootstrap#v1.0.0` to create a service account with limited permissions
-- Uploads scoped kubeconfig as artifact
+This pipeline demonstrates the secure integration of the k8s-bootstrap plugin with Buildkite Secrets using a three-step architecture:
 
-### Step 2: Deploy Application
-- Downloads the scoped kubeconfig artifact
-- Deploys nginx application using the **scoped** kubeconfig (not admin)
+**Step 1: Load Secrets** (`queue: "default"`)
 
-## Setup Requirements
+- Uses native `buildkite-agent secret get` command to load kubeconfig from Buildkite Secrets
+- Runs on regular agents with internet access to Buildkite API
+- Environment variable persists to downstream steps
 
-### 1. Buildkite Secret
-Create a secret in your Buildkite organization:
-- **Key**: `k8s-admin-kubeconfig`
-- **Value**: Raw kubeconfig YAML with cluster-admin permissions
+**Step 2: Bootstrap Service Account** (`queue: "kubernetes"`)
 
-### 2. Plugin Dependencies
-This pipeline uses:
-- `cluster-secrets#v1.0.0` - Load secrets from Buildkite
-- `Mykematt/k8s-bootstrap#v1.0.0` - Create scoped service accounts
+- Uses the `k8s-bootstrap` plugin with the loaded secret from Step 1
+- Runs on K8s agents with direct cluster access for kubectl operations
+- Creates scoped service account and uploads kubeconfig artifact
+
+**Step 3: Deploy Application** (`queue: "kubernetes"`)
+
+- Downloads kubeconfig artifact from Step 2
+- Runs kubectl apply commands with scoped permissions
+- Runs on K8s agents for optimal deployment performance
+
+## Setup Instructions
+
+1. **Create Buildkite Secret:**
+   - Go to your Buildkite Organization Settings → Secrets
+   - Create a new secret with key: `k8s_admin_kubeconfig`
+   - Paste your cluster admin kubeconfig YAML as the value
+
+2. **Configure Agent Queues:**
+   - Ensure you have agents in `queue=default` (regular agents with internet access)
+   - Ensure you have agents in `queue=kubernetes` (K8s agents with cluster access)
+
+3. **Plugin Integration:**
+   ```yaml
+   # Step 1: Load secret natively
+   command: |
+     export KUBECONFIG_SECRET="$(buildkite-agent secret get k8s_admin_kubeconfig)"
+   
+   # Step 2: Use in k8s-bootstrap plugin
+   plugins:
+     - Mykematt/k8s-bootstrap#v1.0.0:
+         cluster-admin-kubeconfig: "${KUBECONFIG_SECRET}"
+   ```
 
 ## Security Benefits
 
