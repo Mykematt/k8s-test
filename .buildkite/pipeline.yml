@@ -2,7 +2,7 @@ steps:
   - label: "🔐 Load secret & Bootstrap service account"
     key: "load-and-bootstrap"
     agents:
-      queue: "kubernetes"  # K8s agents with cluster access
+      queue: "kubernetes"
     command: |
       echo "==== STEP 1: Loading Kubeconfig Secret ===="
       export KUBECONFIG_SECRET="$(buildkite-agent secret get k8s_admin_kubeconfig)"
@@ -20,7 +20,7 @@ steps:
           service-account-name: "deployer-service-account"
           permissions:
             - "deployments"
-            - "pods" 
+            - "pods"
             - "secrets"
             - "configmaps"
             - "services"
@@ -29,7 +29,7 @@ steps:
     key: "deploy-nginx"
     depends_on: "load-and-bootstrap"
     agents:
-      queue: "kubernetes"  # K8s agents with cluster access
+      queue: "kubernetes"
     command: |
       echo "==== STEP 3: Deploying Application ===="
       echo "Downloading scoped kubeconfig artifact from Step 1..."
