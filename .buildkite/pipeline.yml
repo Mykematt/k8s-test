@@ -2,7 +2,7 @@ steps:
   - label: "🔐 Load kubeconfig secret"
     key: "load-secret"
     agents:
-      queue: kubernetes
+      queue: default
     command: |
       echo "Loading kubeconfig secret from Buildkite Secrets..."
       buildkite-agent secret get k8s_admin_kubeconfig > admin-kubeconfig.yaml
@@ -13,15 +13,8 @@ steps:
     key: "bootstrap-sa"
     depends_on: "load-secret"
     agents:
-      queue: kubernetes
+      queue: default
     plugins:
-      - docker#v3.9.0:
-          image: alpine/k8s:1.29.1
-          volumes:
-            - ".:/workspace"
-          workdir: /workspace
-          environment:
-            - BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG
       - Mykematt/k8s-bootstrap#v1.0.0:
           namespace: "default"
           service-account-name: "deployer-service-account"
@@ -37,18 +30,14 @@ steps:
       echo "Setting up environment for k8s-bootstrap plugin..."
       export BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG="$(cat admin-kubeconfig.yaml)"
       echo "Environment variable length: $(echo "$BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG" | wc -c) chars"
+      echo "First 200 chars of kubeconfig:"
+      echo "$BUILDKITE_PLUGIN_K8S_BOOTSTRAP_CLUSTER_ADMIN_KUBECONFIG" | head -c 200
 
   - label: "🚀 Deploy nginx application"
     key: "deploy-nginx"
     depends_on: "bootstrap-sa"
     agents:
       queue: "kubernetes"
-    plugins:
-      - docker#v3.9.0:
-          image: alpine/k8s:1.29.1
-          volumes:
-            - ".:/workspace"
-          workdir: /workspace
     command: |
       echo "==== STEP 3: Deploying Application ===="
       echo "Downloading scoped kubeconfig artifact from Step 2..."
@@ -56,6 +45,8 @@ steps:
       
       export KUBECONFIG="kubeconfig-deployer-service-account.yaml"
       echo "Using scoped kubeconfig for deployment..."
+      echo "First 200 chars of scoped kubeconfig:"
+      head -c 200 kubeconfig-deployer-service-account.yaml
       echo "Applying Kubernetes manifests with limited permissions..."
       kubectl apply -f k8s/configmap.yaml
       kubectl apply -f k8s/deployment.yaml
